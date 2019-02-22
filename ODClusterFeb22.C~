@@ -1,0 +1,79 @@
+// This code reads a .root input file and extracts the event information. A clustering algorithm is run on the entries.
+// The clustering algorithm works as follows:
+// 1. For each particle event, pmt hits are sorted in descending order by charge.
+// 2. The entry with the highest charge is taken, and pmt hits in the vicinity are combined into a single cluster.
+// 3. The algorithm is repeated until all clusters are found.
+// 4. The x, y and z positions of the first 10 clusters are plotted, with different colours representing different clusters.
+// 5. Cluster information is written on the terminal - eg. total charge in cluster, timing, number of pmt hits in a cluster
+//
+// The following cuts are applied: Clusters must have more than 3 pmt hits. All pmt hits taken to form a cluster must have at least 5% of the charge of the highest charge entry
+// in the cluster. The 'vicinity' is taken as a cuboid with dimensions 355.1m * 355.1m * 559.7m.
+//
+// The code is run as root -l -x 'ODClusterFeb22.C("&&&&&")' where &&&&& refers to the location of the input file.
+//
+// Currently, the input file I am using is ../1TeVUpMuJobs_3inchPMTsOD_042percentCoverage_0.root
+
+
+#include <stdio.h>     
+#include <stdlib.h>   
+#include <vector>
+
+
+// ****************  Opening input file  **************************
+
+
+
+void ODClusterFeb22(char *filename=NULL) {
+
+  gROOT->Reset();
+  char* wcsimdirenv;
+  wcsimdirenv = getenv ("WCSIMDIR");
+  if(wcsimdirenv !=  NULL){
+    gSystem->Load("${WCSIMDIR}/libWCSimRoot.so");
+    gSystem->Load("${WCSIMDIR}/libWCSimRoot.rootmap");
+  }else{
+    std::cout << "Can't load WCSim ROOT dictionaries" << std::endl;
+  }
+  gStyle->SetOptStat(1);
+
+  TFile *f;
+  char fTest[128];
+  if (filename==NULL){
+    std::cout << "Please provide filename in option" << std::endl;
+    std::cout << "Will load auto wcsim.root in WCSIMDIR ..." << std::endl;
+    char* name = "wcsim.root";
+    strncpy(fTest, wcsimdirenv, sizeof(fTest));
+    strncat(fTest, "/", (sizeof(fTest) - strlen(fTest)) );
+    strncat(fTest, name, (sizeof(fTest) - strlen(fTest)) );
+    f = new TFile(fTest);
+  }else{
+    f = new TFile(filename);
+  }
+  if (!f->IsOpen()){
+    cout << "Error, could not open input file: " << filename << endl;
+    return -1;
+  }else{
+    if (filename==NULL) cout << "File open bro: " << fTest << endl;
+    else cout << "File open bro: " << filename << endl;
+  }
+
+
+ // **************  Loading the tree  ************************************
+
+
+  TTree  *wcsimT = (TTree*)f->Get("wcsimT");
+
+  WCSimRootEvent *wcsimrootsuperevent = new WCSimRootEvent();
+  wcsimT->SetBranchAddress("wcsimrootevent_OD",&wcsimrootsuperevent);
+
+
+  TTree *wcsimGeoT = (TTree*)f->Get("wcsimGeoT");
+
+  WCSimRootGeom *wcsimrootgeom = new WCSimRootGeom();
+  wcsimGeoT->SetBranchAddress("wcsimrootgeom",&wcsimrootgeom);
+  wcsimGeoT->GetEntry(0); //Geometry is the same for all events, so can just use GetEntry(0)
+
+
+  
+  const long unsigned int nEntries = wcsimT->GetEntries();
+  cout << "Nb of entries " << wcsimT->GetEntries() << endl;
